@@ -11,7 +11,8 @@ const MapView = (() => {
   ];
   const NS = "http://www.w3.org/2000/svg";
 
-  let root, tilesEl, svgEl, walkerEl, hintEl;
+  let root, tilesEl, svgEl, walkerEl, hintEl, partnerEl;
+  let partners = [];      // なかま(2人で旅するとき): [{ km, img, name }] 表示中の季節にいる人だけ
   let route, spots = [], arrived = new Set(), nextId = null, onTap = () => {};
   let w = 360, h = 380;
   let z = ZFOLLOW, clat = 39.9, clon = 140.3, follow = true;
@@ -122,6 +123,21 @@ const MapView = (() => {
     walkerEl.style.transform = "translate(" + px + "px," + py + "px)";
     const west = (q[1] - r[1]) < 0;
     walkerEl.firstElementChild.style.transform = west ? "scaleX(-1)" : "none";
+
+    // なかま(同じ季節を歩いている人)
+    if (partnerEl) {
+      partnerEl.hidden = !partners.length;
+      const pt = partners[0];
+      if (pt) {
+        const a = pointAt(pt.km), b = pointAt(pt.km + 0.25), c = pointAt(Math.max(0, pt.km - 0.25));
+        const [ax, ay] = sx(a).split(",");
+        partnerEl.style.transform = "translate(" + ax + "px," + ay + "px)";
+        const img = partnerEl.firstElementChild;
+        if (img.getAttribute("src") !== pt.img) img.setAttribute("src", pt.img);
+        img.style.transform = (b[1] - c[1]) < 0 ? "scaleX(-1)" : "none";
+        partnerEl.lastElementChild.textContent = pt.name;
+      }
+    }
   }
 
   function draw() {
@@ -191,6 +207,12 @@ const MapView = (() => {
     svgEl = root.querySelector("svg.overlay");
     walkerEl = root.querySelector(".walker");
     hintEl = root.querySelector(".map-hint");
+    partnerEl = document.createElement("div");
+    partnerEl.className = "walker partner";
+    partnerEl.hidden = true;
+    partnerEl.append(document.createElement("img"), document.createElement("span"));
+    partnerEl.lastElementChild.className = "pname";
+    root.insertBefore(partnerEl, walkerEl);
     const resize = () => {
       w = root.clientWidth; h = root.clientHeight;
       svgEl.setAttribute("width", w); svgEl.setAttribute("height", h);
@@ -209,6 +231,9 @@ const MapView = (() => {
     walkerEl.classList.remove("walking");
     draw();
   }
+
+  /** なかまの位置。list: [{ km, img, name }](表示中の季節にいる人だけ)。 */
+  function setPartners(list) { partners = list || []; if (route) draw(); }
 
   function setState(arrivedIds, next) {
     arrived = new Set(arrivedIds); nextId = next; draw();
@@ -234,7 +259,7 @@ const MapView = (() => {
     anim = requestAnimationFrame(tick);
   }
 
-  return { init, setRoute, setState, walkTo, pointAt, elevAt };
+  return { init, setRoute, setState, setPartners, walkTo, pointAt, elevAt };
 })();
 
 // ---- 標高プロフィール(ルート全体の高低差と、いまの位置) ----

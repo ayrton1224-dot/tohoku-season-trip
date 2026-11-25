@@ -72,10 +72,10 @@ function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e
 let view = S.stage;                                     // 画面に出している季節(1つ目が終わったあとは1つ目の地図も見返せる)
 
 // その季節の中で歩いた歩数(1つ目の分を超えた歩数は、2つ目の分として持ち越す)
-function stageSteps(si) { return Math.max(0, Math.min(STAGES[si].len, S.total - STAGES[si].offset)); }
+function stageSteps(si, total = S.total) { return Math.max(0, Math.min(STAGES[si].len, total - STAGES[si].offset)); }
 // 歩数→地図上の距離。名所の到着歩数は100歩単位に丸めているので、名所と名所の間で比例させて、着いたときにピンの上に来るようにする
-function stageKm(si) {
-  const st = STAGES[si], s = stageSteps(si);
+function stageKm(si, total = S.total) {
+  const st = STAGES[si], s = stageSteps(si, total);
   let c0 = 0, k0 = 0;
   for (const sp of st.spots) {
     if (s <= sp.cum) return k0 + (sp.km - k0) * (s - c0) / (sp.cum - c0 || 1);
@@ -224,6 +224,8 @@ function renderMap() {
   MapView.setState(ids, n ? n.id : null);
   MapView.walkTo(km);
   Profile.draw(km, ids);
+  MapView.setPartners(mates.filter((m) => m.si === view && CHARA[m.main])
+    .map((m) => ({ km: stageKm(view, m.total), img: "chara/" + CHARA[m.main].walk + ".svg", name: m.name })));
   $("mapTitle").textContent = st.title + " のルート(秋田駅スタート)";
   $("listTitle").textContent = st.title + " の名所リスト";
   $("routeNote").textContent = "この季節のルートは全長およそ" + Math.round(st.route.km[st.route.km.length - 1]) +
@@ -357,6 +359,7 @@ $("pick").addEventListener("click", (e) => {
   if (!b) return;
   S.main = b.dataset.main;
   save();
+  shareSync();
   applyChara();
   $("pick").hidden = true;
   render();
@@ -443,6 +446,147 @@ if (WEB) {
   renderDays();
 }
 
+// ---------- 2人で旅する(なかまの位置) ----------
+// 各端末が「名前・主人公・累計歩数・季節」を GitHub の非公開リポジトリ(players/<端末ID>.json)に書き、相手の分を読む。
+// 鍵(fine-grained トークン。このリポジトリの Contents 読み書きだけ)は各端末で入力し、localStorage に置く(旅の記録とは別のキー)。
+// 読むのは60秒ごと・画面を開いたとき。書くのは歩数が変わって5分たったとき・季節が変わったとき・画面を閉じるとき(コミットを増やしすぎない)。
+const SYNC = { repo: "ayrton1224-dot/tohoku-season-sync", dir: "players", every: 60000, pushEvery: 300000, staleDays: 14, timeout: 15000 };
+const SHARE_KEY = "tohoku-share-v1";
+let SH = (() => { try { return JSON.parse(localStorage.getItem(SHARE_KEY)) || {}; } catch (e) { return {}; } })();
+function saveShare() { try { localStorage.setItem(SHARE_KEY, JSON.stringify(SH)); } catch (e) { /* 保存できなくても動く */ } }
+if (!SH.id) { SH.id = Math.random().toString(16).slice(2, 10) + Date.now().toString(16).slice(-4); saveShare(); }
+let mates = [];                                  // なかまの記録 [{ id, name, main, total, si(季節の番号), t }]
+const mateCache = {};                            // ファイル名 → { sha, data }(変わっていなければ読み直さない)
+let mySent = null, myStage = null, lastPush = 0, syncMsg = "";
+let syncing = false, pending = false, pendingForce = false, shareGen = 0;   // shareGen: 「やめる」「保存」で増やし、古い同期の結果を捨てる
+
+const b64 = (str) => btoa(unescape(encodeURIComponent(str)));
+function gh(path, opt) {
+  opt = opt || {};
+  const ac = typeof AbortController !== "undefined" ? new AbortController() : null;
+  const timer = ac ? setTimeout(() => ac.abort(), SYNC.timeout) : null;     // 通信が止まっても同期が固まらないように
+  return fetch("https://api.github.com/repos/" + SYNC.repo + "/contents/" + path, {
+    method: opt.method || "GET", body: opt.body, cache: "no-store", signal: ac ? ac.signal : undefined,
+    headers: { Authorization: "Bearer " + SH.token, Accept: opt.accept || "application/vnd.github+json" },
+  }).finally(() => { if (timer) clearTimeout(timer); });
+}
+function ago(t) {
+  const m = Math.round((Date.now() - t) / 60000);
+  return m < 1 ? "たった今" : m < 60 ? m + "分前" : m < 1440 ? Math.round(m / 60) + "時間前" : Math.round(m / 1440) + "日前";
+}
+// 自分の記録を書く。2台が同時に書いて sha がずれた(409/422)ときは、sha を取り直して1回だけやり直す
+async function putMine(rec, sha) {
+  const file = SYNC.dir + "/" + SH.id + ".json";
+  const send = (s) => gh(file, { method: "PUT", body: JSON.stringify(Object.assign({ message: "update " + SH.id, content: b64(JSON.stringify(rec)) }, s ? { sha: s } : {})) });
+  let w = await send(sha);
+  if (w.status === 409 || w.status === 422) {
+    const g = await gh(file);
+    w = await send(g.ok ? (await g.json()).sha : null);
+  }
+  if (!w.ok) throw w.status;
+}
+
+async function shareSync(force) {
+  if (!SH.token) return;
+  if (syncing) { pending = true; pendingForce = pendingForce || force === true; return; }   // 同期中に呼ばれた分は、終わってからもう一度
+  syncing = true;
+  const gen = shareGen;
+  try {
+    const r = await gh(SYNC.dir);
+    if (r.status !== 404 && !r.ok) throw r.status;
+    const list = r.status === 404 ? [] : await r.json();
+    if (gen !== shareGen) return;
+    const files = (Array.isArray(list) ? list : []).filter((f) => f.name.endsWith(".json"));
+    const mine = files.find((f) => f.name === SH.id + ".json");
+    // 自分の記録
+    const rec = { id: SH.id, name: SH.name || me().name, main: S.main || "yama", total: S.total, stage: S.stage, stageId: STAGES[S.stage].id, v: 2 };
+    const key = JSON.stringify(rec);
+    const due = force === true || Date.now() - lastPush >= SYNC.pushEvery || myStage !== S.stage;
+    if (!mine || (key !== mySent && due)) {
+      rec.t = Date.now();
+      await putMine(rec, mine && mine.sha);
+      mySent = key; myStage = S.stage; lastPush = Date.now();
+    }
+    // なかまの記録(sha が変わったものだけ読む)。古すぎる記録と、自分と同じ名前の記録(入れ直す前の自分)は出さない
+    const out = [];
+    for (const f of files) {
+      if (f.name === SH.id + ".json") continue;
+      let c = mateCache[f.name];
+      if (!c || c.sha !== f.sha) {
+        const g = await gh(f.path, { accept: "application/vnd.github.raw+json" });
+        if (!g.ok) continue;
+        try { c = mateCache[f.name] = { sha: f.sha, data: JSON.parse(await g.text()) }; } catch (e) { continue; }
+      }
+      const d = c.data;
+      if (!d || !Number.isFinite(d.total) || !Number.isFinite(d.t)) continue;
+      if (Date.now() - d.t > SYNC.staleDays * 86400000 || d.name === SH.name) continue;
+      const si = d.stageId ? STAGES.findIndex((s) => s.id === d.stageId) : d.stage;   // 季節は id で合わせる(版で並びが違っても位置がずれない)
+      if (!STAGES[si]) continue;
+      out.push(Object.assign({}, d, { si }));
+    }
+    if (gen !== shareGen) return;
+    mates = out.sort((a, b) => b.t - a.t).slice(0, 3);
+    const n = new Date();
+    syncMsg = "同期 " + n.getHours() + ":" + String(n.getMinutes()).padStart(2, "0");
+  } catch (e) {
+    if (gen === shareGen) {
+      syncMsg = (e === 401 || e === 403 || e === 404) ? "鍵が使えません(入力ミス・期限切れ・権限を確認してください)"
+        : "同期できませんでした(" + (typeof e === "number" ? e : "通信エラー") + ")。あとで自動でやり直します";
+    }
+  } finally {
+    syncing = false;
+    if (gen === shareGen) { renderShare(); render(); }
+    if (pending) { const f = pendingForce; pending = pendingForce = false; setTimeout(() => shareSync(f), 0); }
+  }
+}
+
+function renderShare() {
+  const box = $("shareList");
+  box.replaceChildren();
+  const note = (t) => { const p = document.createElement("p"); p.className = "note"; p.textContent = t; box.append(p); };
+  if (!SH.token) note("なかまと位置を見せ合うには、下の「設定」で名前と鍵を入れてください。");
+  else if (!mates.length) note(syncMsg ? "なかまの記録はまだありません。なかまの端末でも設定すると表示されます。" : "同期しています…");
+  for (const m of mates) {
+    const st = STAGES[m.si], c = CHARA[m.main] || CHARA.yama;
+    const nx = st.spots.find((s) => m.total < s.gcum);
+    const diff = m.total - S.total;
+    const div = document.createElement("div"); div.className = "share-who";
+    const img = document.createElement("img"); img.src = "chara/" + c.walk + ".svg"; img.alt = c.name;
+    const txt = document.createElement("div");
+    const b = document.createElement("b"); b.textContent = m.name + "(" + c.name + ")";
+    txt.append(b, document.createElement("br"),
+      document.createTextNode(st.title + " ・ " + fmt(m.total) + "歩(" +
+        (diff === 0 ? "あなたと同じ" : "あなたより" + fmt(Math.abs(diff)) + "歩" + (diff > 0 ? "先" : "うしろ")) + ")"),
+      document.createElement("br"),
+      document.createTextNode((nx ? "つぎは" + nx.preArea + "の" + WORD[st.id] + "の名所まで あと" + fmt(nx.gcum - m.total) + "歩"
+        : st.title + "を歩き切った") + " ・ " + ago(m.t)));
+    div.append(img, txt);
+    box.append(div);
+  }
+  $("shareStatus").textContent = SH.token ? (SH.name ? "あなたの名前: " + SH.name + " ・ " : "") + syncMsg : "";
+  $("shareName").value = SH.name || "";
+  $("shareToken").placeholder = SH.token ? "鍵は保存済み(入れ直すときだけ入力)" : "鍵(github_pat_…)";
+  if (!SH.token) $("shareSet").open = true;
+}
+
+$("shareSave").addEventListener("click", () => {
+  const name = $("shareName").value.trim(), tok = $("shareToken").value.trim();
+  if (!name) { $("shareStatus").textContent = "名前を入れてください。"; return; }
+  if (!tok && !SH.token) { $("shareStatus").textContent = "鍵を入れてください。"; return; }
+  SH.name = name;
+  if (tok) SH.token = tok;
+  saveShare();
+  $("shareToken").value = "";
+  $("shareSet").open = false;
+  shareGen++; syncMsg = ""; mySent = null; mates = [];
+  renderShare();
+  shareSync(true);
+});
+$("shareOff").addEventListener("click", () => {
+  shareGen++; SH.token = null; mates = []; syncMsg = ""; mySent = null;
+  saveShare(); renderShare(); render();
+});
+
 // ---------- 起動 ----------
 if (S.stage > STAGES.length - 1) S.stage = STAGES.length - 1;
 view = S.stage;
@@ -451,10 +595,13 @@ MapView.init({ root: $("map"), route: STAGES[view].route, spots: STAGES[view].sp
   if (sp && S.arrivals[id]) openSpot(sp, false);
 } });
 Profile.init({ route: STAGES[view].route, spots: STAGES[view].spots, svg: $("profile") });
-$("ver").textContent = "v0.7 ・ " + STAGES.map((st) => SEASON[st.id] + st.spots.length + "か所").join(" → ") + " ・ 2026/11/25";
-document.addEventListener("visibilitychange", () => { if (!document.hidden) sync(); });
+$("ver").textContent = "v0.8 ・ " + STAGES.map((st) => SEASON[st.id] + st.spots.length + "か所").join(" → ") + " ・ 2026/11/25";
+document.addEventListener("visibilitychange", () => { sync(); shareSync(document.hidden); });   // 閉じるときは最新の歩数を取り込んで自分の記録を送り、開いたときは読み直す
+setInterval(shareSync, SYNC.every);
+renderShare();
 setInterval(sync, 3000);
 applyChara();
 if (!CHARA[S.main]) openPick();      // 最初の起動: 主人公を選ぶ(選ぶまで到着画面は出さない)
 render();
 if (WEB) registerArrivals(); else sync();
+shareSync();

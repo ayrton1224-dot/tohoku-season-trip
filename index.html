@@ -44,6 +44,21 @@
     <div class="next-elev" id="nextElev"></div>
   </section>
 
+  <section class="card" id="share">
+    <h2>2人で旅する</h2>
+    <div id="shareList"></div>
+    <p id="shareStatus"></p>
+    <details id="shareSet">
+      <summary>設定</summary>
+      <p class="note">なかまと、旅の中の位置(歩数)を見せ合います。名前と、GitHubの鍵(トークン)を入れると始まります。鍵はこの端末のアプリ・ブラウザの中に保存します(Web版では同じサイトの他のページからも読めます)。「やめる」は鍵を消すだけで、GitHub上の記録は残ります。</p>
+      <div class="share-form">
+        <input id="shareName" maxlength="12" placeholder="表示する名前(例: ゆき)" aria-label="表示する名前">
+        <input id="shareToken" type="password" autocomplete="off" placeholder="鍵(github_pat_…)" aria-label="GitHubの鍵">
+        <div class="row"><button id="shareSave">保存して始める</button><button class="ghost" id="shareOff">やめる</button></div>
+      </div>
+    </details>
+  </section>
+
   <section class="card" id="manual" hidden>
     <h2>今日の歩数を入れる</h2>
     <p class="note">「ヘルスケア」アプリで見たその日の歩数を入力します。同じ日に入れ直すと、増えた分だけ進みます。</p>

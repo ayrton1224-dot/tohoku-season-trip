@@ -32,3 +32,18 @@ body.autumn { --green: #b8430f; --green-soft: #f8e1d2; --red: #8a1f1f; }
 .pick-row img { width: 72px; height: 128px; object-fit: contain; }
 .pick-row b { font-size: 17px; }
 .pick-row small { font-size: 12px; color: #777; }
+
+/* 2人で旅する: 地図上のなかま */
+.walker.partner { z-index: 1; }
+.walker.partner[hidden] { display: none; }
+.walker.partner img { opacity: .9; }
+.walker .pname { position: absolute; left: -48px; top: 10px; width: 96px; text-align: center; font-size: 11px; font-weight: bold;
+  color: #fff; background: rgba(60, 60, 60, .75); border-radius: 8px; padding: 1px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* 2人で旅する: カード */
+.share-who { margin: 6px 0; padding: 8px 10px; border-radius: 10px; background: var(--green-soft); font-size: 14px; line-height: 1.6; display: flex; gap: 8px; align-items: center; }
+.share-who img { width: 34px; height: 60px; object-fit: contain; flex: none; }
+.share-form { display: grid; gap: 6px; margin-top: 8px; }
+.share-form input { font: inherit; padding: 8px; border: 1px solid #ccc; border-radius: 8px; min-width: 0; }
+.share-form .row { display: flex; gap: 6px; }
+.share-form .row button { flex: 1; }
+#shareStatus { font-size: 12px; color: #777; }

@@ -48,7 +48,7 @@ const other = (k) => (k === "tabi" ? "yama" : "tabi");
 function me() { return CHARA[S.main] || CHARA.yama; }
 function applyChara() {
   const m = me(), o = CHARA[other(S.main || "yama")];
-  const w = document.querySelector("#map .walker img");
+  const w = document.querySelector("#map .walker:not(.partner) img");
   if (w) { w.src = "chara/" + m.walk + ".svg"; w.alt = m.name; }
   $("guideImg").alt = m.name;
   const hint = document.querySelector("#map .map-hint");
@@ -595,7 +595,7 @@ MapView.init({ root: $("map"), route: STAGES[view].route, spots: STAGES[view].sp
   if (sp && S.arrivals[id]) openSpot(sp, false);
 } });
 Profile.init({ route: STAGES[view].route, spots: STAGES[view].spots, svg: $("profile") });
-$("ver").textContent = "v0.8 ・ " + STAGES.map((st) => SEASON[st.id] + st.spots.length + "か所").join(" → ") + " ・ 2026/11/25";
+$("ver").textContent = "v0.8.1 ・ " + STAGES.map((st) => SEASON[st.id] + st.spots.length + "か所").join(" → ") + " ・ 2026/11/25";
 document.addEventListener("visibilitychange", () => { sync(); shareSync(document.hidden); });   // 閉じるときは最新の歩数を取り込んで自分の記録を送り、開いたときは読み直す
 setInterval(shareSync, SYNC.every);
 renderShare();

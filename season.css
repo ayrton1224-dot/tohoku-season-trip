@@ -1,0 +1,34 @@
+/* PJ13 追加分: 季節ごとの色、季節タブ、複数枚の写真、季節の切り替え画面。style.css(PJ12 と共通)の後に読む。 */
+body.spring { --green: #b8436b; --green-soft: #f9dfe8; --red: #7a2f8f; }
+body.autumn { --green: #b8430f; --green-soft: #f8e1d2; --red: #8a1f1f; }
+.r-done, .pf-done { stroke: var(--green); }
+.r-line { stroke: #6b6b60; stroke-opacity: .7; }
+.top h1 { font-size: 19px; }
+
+.stages { display: flex; gap: 8px; margin: 4px 0 10px; }
+.stage-tab { flex: 1; padding: 9px 6px; font-size: 13px; background: var(--card); color: var(--sub); border: 1px solid var(--line); }
+.stage-tab.on { background: var(--green); color: #fff; border-color: var(--green); }
+.stage-tab:disabled { opacity: .55; }
+.stage-tab .lock { font-size: 11px; font-weight: 400; display: block; }
+
+#mPhotos { display: flex; flex-direction: column; gap: 4px; }
+#mPhotos .photo:nth-child(even) { transform: rotate(1.1deg); }
+.photo img { max-height: 46vh; }
+
+.sheet.clear { text-align: center; padding-top: 26px; background: linear-gradient(180deg, #fdebf1, #fbe3d3); }
+.clear-title { margin: 6px 0 10px; font-size: 24px; color: #b8430f; line-height: 1.4; }
+.clear-text { font-size: 14px; line-height: 1.8; margin: 0 8px 18px; }
+.sheet.finale { background: linear-gradient(180deg, #fdebf1, #fbe3d3); }
+.fin-photos img { aspect-ratio: 3 / 4; }
+.fin-sub { color: #a5523f; }
+.list .meta small { display: block; }
+.visit { font-size: 12px; color: var(--sub); text-align: center; margin: -8px 4px 16px; }
+
+/* 主人公を選ぶ画面 */
+.pick-row { display: flex; gap: 12px; justify-content: center; margin: 14px 0 4px; }
+.pick-row button { flex: 1; max-width: 160px; display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 12px 8px; border: 2px solid var(--green); border-radius: 14px; background: #fff; color: #333; font: inherit; cursor: pointer; }
+.pick-row button:active { background: var(--green-soft); }
+.pick-row img { width: 72px; height: 128px; object-fit: contain; }
+.pick-row b { font-size: 17px; }
+.pick-row small { font-size: 12px; color: #777; }

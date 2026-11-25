@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>東北 桜・紅葉の旅</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="桜紅葉の旅">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#b8430f">
+<meta name="robots" content="noindex,nofollow">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-180.png">
+<link rel="manifest" href="manifest.webmanifest">
+<script>window.TOHOKU_WEB = true;</script>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="season.css">
+</head>
+<body class="autumn">
+<main>
+  <header class="top">
+    <h1>東北 桜・紅葉の旅</h1>
+    <div class="total"><b id="totalSteps">0</b><span>歩</span></div>
+  </header>
+
+  <nav class="stages" id="stages" aria-label="旅の季節">
+    <button data-stage="0" class="stage-tab">秋・紅葉の旅</button>
+    <button data-stage="1" class="stage-tab">春・桜の旅</button>
+  </nav>
+
+  <section class="guide">
+    <img id="guideImg" src="chara/right-egao.svg" alt="山女子">
+    <div class="bubble" id="guideText"></div>
+  </section>
+
+  <section class="card next">
+    <div class="next-head">
+      <span id="nextLabel">次の目的地</span>
+      <strong id="nextName"></strong>
+    </div>
+    <div class="bar"><i id="barFill"></i></div>
+    <div class="next-foot"><span id="nextRemain"></span><span id="nextPct"></span></div>
+    <div class="next-elev" id="nextElev"></div>
+  </section>
+
+  <section class="card" id="manual" hidden>
+    <h2>今日の歩数を入れる</h2>
+    <p class="note">「ヘルスケア」アプリで見たその日の歩数を入力します。同じ日に入れ直すと、増えた分だけ進みます。</p>
+    <div class="manual-row">
+      <input type="date" id="mDate" aria-label="日付">
+      <input type="number" id="mSteps" inputmode="numeric" min="0" max="200000" placeholder="歩数" aria-label="歩数">
+      <button id="mSave">記録</button>
+    </div>
+    <p class="note" id="mDays"></p>
+  </section>
+
+  <section class="card">
+    <h2 id="mapTitle">旅のルート</h2>
+    <div class="map" id="map">
+      <div class="tiles"></div>
+      <svg class="overlay" aria-label="旅のルート"></svg>
+      <div class="walker"><img src="chara/right.svg" alt="山女子"></div>
+      <div class="map-ctrl">
+        <button class="map-btn" data-zoom-in aria-label="拡大">＋</button>
+        <button class="map-btn" data-zoom-out aria-label="縮小">－</button>
+        <button class="map-btn small" data-fit>全体</button>
+        <button class="map-btn small" data-here>現在地</button>
+      </div>
+      <div class="map-hint" hidden>地図を動かしています。「現在地」で山女子に戻ります</div>
+      <div class="map-legend"><span>標高</span><span>低</span><i></i><span>高</span></div>
+      <div class="map-credit">地理院タイル(淡色地図・色別標高図・陰影起伏図)</div>
+    </div>
+    <h2 class="sub">ルートの高低差</h2>
+    <svg id="profile" viewBox="0 0 360 120" role="img" aria-label="ルートの標高プロフィール"></svg>
+    <p class="note" id="routeNote"></p>
+  </section>
+
+  <section class="card">
+    <h2 id="listTitle">名所リスト</h2>
+    <ol id="list" class="list"></ol>
+  </section>
+
+  <section class="card goal-card" id="goalCard" hidden>
+    <button class="ghost" id="goalOpen">旅の完了画面を見る</button>
+  </section>
+
+  <section class="card dev" id="dev" hidden>
+    <h2>テスト用</h2>
+    <div class="dev-row">
+      <button data-add="500">+500歩</button>
+      <button data-add="3000">+3000歩</button>
+      <button data-add="10000">+1万歩</button>
+      <button data-add="100000">+10万歩</button>
+      <button data-reset>リセット</button>
+    </div>
+  </section>
+  <p class="ver" id="ver"></p>
+</main>
+
+<div class="modal" id="modal" hidden>
+  <div class="sheet">
+    <div class="sheet-top">
+      <div class="bubble tail-r" id="mSay"></div>
+      <img id="mImg" src="chara/tabioji-egao.svg" alt="たびおじ">
+    </div>
+    <div class="spot-name"><small id="mArea"></small><h3 id="mName"></h3><p id="mTag"></p></div>
+    <div id="mPhotos"></div>
+    <div class="nophoto" id="mNoPhoto" hidden></div>
+    <p class="fact" id="mFact"></p>
+    <p class="visit" id="mVisit"></p>
+    <div class="sheet-actions">
+      <button id="mClose">つぎへ</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="stageClear" hidden>
+  <div class="sheet clear">
+    <p class="fin-sub" id="clearSub">秋・紅葉の旅 完了!</p>
+    <h2 class="clear-title" id="clearTitle">つぎは 春・桜の旅</h2>
+    <p class="clear-text" id="clearText"></p>
+    <div class="sheet-actions"><button id="clearGo">春の旅へ出発</button></div>
+  </div>
+</div>
+
+<div class="modal" id="pick" hidden>
+  <div class="sheet clear pick">
+    <p class="fin-sub">東北 桜・紅葉の旅</p>
+    <h2 class="clear-title">いっしょに歩く主人公を選んでね</h2>
+    <p class="clear-text">選んだキャラが地図の上を歩きます。もう一人は、名所に着いたときの紹介役です。</p>
+    <div class="pick-row">
+      <button data-main="yama"><img src="chara/right-wink.svg" alt=""><b>山女子</b><small>紹介役: たびおじ</small></button>
+      <button data-main="tabi"><img src="chara/tabioji-right-wink.svg" alt=""><b>たびおじ</b><small>紹介役: 山女子</small></button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="finale" hidden>
+  <div class="sheet finale">
+    <p class="fin-sub" id="finSub">秋と春、両方の旅が完了!</p>
+    <div class="fin-photos">
+      <img id="finA" alt="">
+      <img id="finB" alt="">
+    </div>
+    <h2 class="clear-title">東北の桜と紅葉を<br>ぜんぶ歩いたよ</h2>
+    <p class="clear-text" id="finText"></p>
+    <div class="sheet-actions"><button id="fClose">とじる</button></div>
+  </div>
+</div>
+
+<script src="debug.js"></script>
+<script src="data.js"></script>
+<script src="map.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
